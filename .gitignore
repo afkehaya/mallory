@@ -57,3 +57,7 @@ logs
 # Temporary folders
 tmp/
 temp/
+
+# Wallet secrets (dev only)
+.wallet.json
+.dev-balances.json

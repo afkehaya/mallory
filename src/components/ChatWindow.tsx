@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Sparkles, User, LogOut, ShoppingCart } from 'lucide-react'
+import { Send, Sparkles, User, LogOut, ShoppingCart, Wallet, Database } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 interface Message {
@@ -142,6 +142,36 @@ export default function ChatWindow() {
           </div>
 
           <div className="flex items-center space-x-4">
+            {/* Feature Navigation - Only show if payments enabled */}
+            {process.env.NEXT_PUBLIC_ENABLE_PAYMENTS === 'true' && (
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => router.push('/wallet')}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors flex items-center space-x-2"
+                  title="Mallory Wallet"
+                >
+                  <Wallet className="w-4 h-4" />
+                  <span className="text-sm hidden sm:inline">Wallet</span>
+                </button>
+                <button
+                  onClick={() => router.push('/demos/amazon')}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors flex items-center space-x-2"
+                  title="Amazon Demo"
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  <span className="text-sm hidden sm:inline">Amazon</span>
+                </button>
+                <button
+                  onClick={() => router.push('/demos/solana')}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors flex items-center space-x-2"
+                  title="Solana Demo"
+                >
+                  <Database className="w-4 h-4" />
+                  <span className="text-sm hidden sm:inline">Solana</span>
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
               <User className="w-4 h-4" />
               <span>{user?.email}</span>
