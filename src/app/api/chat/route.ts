@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createChatStream } from '@/lib/anthropic'
+import { createAutonomousChatStream } from '@/lib/anthropic'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,8 +20,8 @@ export async function POST(request: NextRequest) {
       content: message.content,
     }))
 
-    // Create streaming response
-    const stream = await createChatStream(anthropicMessages)
+    // Create autonomous streaming response with function calling
+    const stream = await createAutonomousChatStream(anthropicMessages)
 
     // Create a ReadableStream to handle the response
     const readableStream = new ReadableStream({

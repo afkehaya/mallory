@@ -1,12 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAddress, getDevBalance, fundDevWallet } from '@/lib/server/wallet'
+import { Connection, PublicKey } from '@solana/web3.js'
 
 export const runtime = 'nodejs'
+
+// Create connection to Solana mainnet
+const connection = new Connection('https://api.mainnet-beta.solana.com', 'confirmed')
+
+// USDC mint address on mainnet
+const USDC_MINT = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')
+
+async function getRealSolanaBalances(address: string) {
+  try {
+    const publicKey = new PublicKey(address)
+
+    // Get SOL balance
+    const solBalance = await connection.getBalance(publicKey)
+    const solInSol = solBalance / 1e9 // Convert lamports to SOL
+
+    // Get USDC balance
+    const tokenAccounts = await connection.getTokenAccountsByOwner(publicKey, {
+      mint: USDC_MINT
+    })
+
+    let usdcBalance = 0
+    if (tokenAccounts.value.length > 0) {
+      const accountInfo = await connection.getTokenAccountBalance(tokenAccounts.value[0].pubkey)
+      usdcBalance = parseFloat(accountInfo.value.uiAmount || '0')
+    }
+
+    return {
+      SOL: parseFloat(solInSol.toFixed(4)),
+      USDC: parseFloat(usdcBalance.toFixed(2))
+    }
+  } catch (error) {
+    console.error('[wallet] Failed to get real balances:', error)
+    // Fallback to dev balances for development
+    return await getDevBalance()
+  }
+}
 
 export async function GET() {
   try {
     const address = await getAddress()
-    const balances = await getDevBalance()
+    const balances = await getRealSolanaBalances(address)
 
     return NextResponse.json({
       address,
