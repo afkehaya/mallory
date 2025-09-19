@@ -30,7 +30,7 @@ export function useFaremeterWallet(): FaremeterWallet {
     const initWallet = async () => {
       try {
         const solanaWallet = await createSolanaWallet({
-          facilitatorURL: process.env.NEXT_PUBLIC_FACILITATOR_URL || 'https://facilitator.faremeter.xyz',
+          facilitatorURL: process.env.NEXT_PUBLIC_FACILITATOR_URL || 'https://facilitator.corbits.dev',
           network: 'mainnet-beta'
         })
         setWallet(solanaWallet)

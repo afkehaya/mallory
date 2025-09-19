@@ -1,4 +1,5 @@
 import { ToolResult, ToolName } from './tools'
+import { x402Fetch } from './server/x402'
 
 // Internal API base URL
 const API_BASE = process.env.NODE_ENV === 'production'
@@ -80,8 +81,8 @@ export class ToolExecutor {
 
   private async searchAmazonProducts(query: string, maxPrice?: number): Promise<ToolResult> {
     try {
-      // Use Amazon proxy for product search
-      const searchUrl = new URL(`${AMAZON_PROXY_URL}/products`)
+      // Use Faremeter/x402 payment proxy for product search (no API keys needed)
+      const searchUrl = new URL(`${PAYMENT_PROXY_URL}/products`)
       searchUrl.searchParams.set('search', query)
       if (maxPrice) {
         searchUrl.searchParams.set('max_price', maxPrice.toString())
@@ -129,8 +130,8 @@ export class ToolExecutor {
 
   private async getProductDetails(sku: string): Promise<ToolResult> {
     try {
-      // Use Amazon proxy to get product details - first search for all products, then find the one with matching SKU/ASIN
-      const response = await fetch(`${AMAZON_PROXY_URL}/products`)
+      // Use Faremeter/x402 payment proxy to get product details - first search for all products, then find the one with matching SKU/ASIN
+      const response = await fetch(`${PAYMENT_PROXY_URL}/products`)
 
       if (!response.ok) {
         throw new Error(`Amazon API error: ${response.status}`)
@@ -210,13 +211,14 @@ export class ToolExecutor {
         }
       }
 
-      // Execute the actual purchase via payment proxy (this routes through Faremeter with the wallet)
-      const response = await fetch(`${PAYMENT_PROXY_URL}/purchase`, {
+      // Execute the actual purchase via x402 payment protocol (handles Faremeter payments automatically)
+      const response = await x402Fetch({
+        url: `${PAYMENT_PROXY_URL}/purchase`,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ sku, quantity, shipping }),
+        body: { sku, quantity, shipping },
       })
 
       const result = await response.json()
