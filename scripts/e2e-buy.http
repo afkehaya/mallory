@@ -1,0 +1,125 @@
+### E2E Amazon Purchase Test - REST Client Format
+### Use this file with VS Code REST Client extension or similar tools
+
+@amazon_proxy = http://localhost:8787
+@payment_proxy = http://localhost:8402
+@mallory_app = http://localhost:3001
+
+### 1. Health Check - Amazon Proxy
+GET {{amazon_proxy}}/health
+
+### 2. Health Check - Payment Proxy
+GET {{payment_proxy}}/health
+
+### 3. Health Check - Mallory App
+GET {{mallory_app}}/api/health
+
+### 4. Search Amazon Products
+GET {{amazon_proxy}}/products?search=AirPods under $200
+
+### 5. Get Product Details (use ASIN from search response)
+# Replace B0BDHB9Y8H with actual ASIN from search results
+@test_asin = B0BDHB9Y8H
+
+### 6. Direct Purchase Test (bypasses x402 payment)
+POST {{amazon_proxy}}/purchase
+Content-Type: application/json
+
+{
+    "sku": "{{test_asin}}",
+    "quantity": 1,
+    "shipping": {
+        "name": "E2E Test Customer",
+        "email": "test@example.com",
+        "address": {
+            "line1": "123 Test Street",
+            "city": "San Francisco",
+            "state": "CA",
+            "postalCode": "94105",
+            "country": "US"
+        }
+    }
+}
+
+### 7. Purchase via Payment Proxy (with x402 payment flow)
+POST {{payment_proxy}}/purchase
+Content-Type: application/json
+
+{
+    "sku": "{{test_asin}}",
+    "quantity": 1,
+    "shipping": {
+        "name": "E2E Test Customer",
+        "email": "test@example.com",
+        "address": {
+            "line1": "123 Test Street",
+            "city": "San Francisco",
+            "state": "CA",
+            "postalCode": "94105",
+            "country": "US"
+        }
+    }
+}
+
+### 8. Check Root Endpoint Info
+GET {{amazon_proxy}}/
+
+### 9. Test Crossmint Order Creation (direct)
+# This tests the core Crossmint integration without payment flows
+POST {{amazon_proxy}}/purchase
+Content-Type: application/json
+
+{
+    "sku": "B08N5WRWNW",
+    "quantity": 1,
+    "shipping": {
+        "name": "Direct Test Customer",
+        "email": "direct@example.com",
+        "address": {
+            "line1": "456 Direct Avenue",
+            "city": "Los Angeles",
+            "state": "CA",
+            "postalCode": "90210",
+            "country": "US"
+        }
+    }
+}
+
+### 10. Fetch Multiple Products for Testing
+GET {{amazon_proxy}}/products?search=wireless headphones&limit=5
+
+### Expected Response Format for Purchase
+# {
+#   "ok": true,
+#   "orderId": "crossmint_order_123",
+#   "status": "confirmed",
+#   "message": "Purchase completed successfully!",
+#   "order": {
+#     "orderId": "crossmint_order_123",
+#     "paymentId": "payment_123",
+#     "sku": "B08N5WRWNW",
+#     "product": "Product Title",
+#     "quantity": 1,
+#     "unitPrice": 29.99,
+#     "totalPrice": 29.99,
+#     "estimatedDelivery": "3-5 business days",
+#     "tracking": "TK123456789"
+#   },
+#   "raw": {
+#     "id": "crossmint_order_123",
+#     ...
+#   }
+# }
+
+### Error Response Format
+# {
+#   "ok": false,
+#   "stage": "crossmint.createOrder",
+#   "code": 502,
+#   "message": "Crossmint API error: 400 Bad Request - Invalid locator",
+#   "details": {
+#     "originalError": "...",
+#     "timestamp": "2024-01-01T00:00:00.000Z",
+#     "requestId": "req_1234567890"
+#   }
+# }
