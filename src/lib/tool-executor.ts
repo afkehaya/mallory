@@ -13,6 +13,9 @@ const AMAZON_PROXY_URL = process.env.NEXT_PUBLIC_AMAZON_PROXY_URL || 'http://loc
 const PAYMENT_PROXY_URL = 'http://localhost:8402'
 
 export class ToolExecutor {
+  // Simple in-memory cache for recently searched products with their signed data
+  private productCache = new Map<string, any>()
+
   // Execute a tool call from Claude
   async executeToolCall(toolName: ToolName, parameters: any): Promise<ToolResult> {
     console.log(`[ToolExecutor] Executing ${toolName} with parameters:`, parameters)
@@ -96,13 +99,19 @@ export class ToolExecutor {
 
       const data = await response.json()
 
+      // Handle new signed product format
+      let signedProducts = data.products || []
+
       // Filter by max price if specified (additional client-side filtering)
-      let filteredProducts = data.products || []
       if (maxPrice) {
-        filteredProducts = filteredProducts.filter((product: any) => product.price <= maxPrice)
+        signedProducts = signedProducts.filter((item: any) => {
+          const product = item.product || item
+          const price = product.price?.amount || product.price || 0
+          return price <= maxPrice
+        })
       }
 
-      if (filteredProducts.length === 0) {
+      if (signedProducts.length === 0) {
         return {
           success: true,
           data: { products: [], query, maxPrice },
@@ -110,15 +119,43 @@ export class ToolExecutor {
         }
       }
 
+      // Transform to include display data while preserving signed data
+      const transformedProducts = signedProducts.map((item: any) => {
+        const product = item.product || item
+
+        const transformedProduct = {
+          // Display data for UI
+          asin: product.asin,
+          title: product.title,
+          price: product.price?.amount || product.price || 0,
+          image: product.image,
+          url: product.url,
+
+          // Signed data for stateless flow
+          productBlob: item.productBlob,
+          signature: item.signature,
+
+          // Keep the full product for compatibility
+          ...product
+        }
+
+        // Cache this product for later purchase use
+        if (product.asin && item.productBlob && item.signature) {
+          this.productCache.set(product.asin, transformedProduct)
+        }
+
+        return transformedProduct
+      })
+
       return {
         success: true,
         data: {
-          products: filteredProducts,
+          products: transformedProducts,
           query,
           maxPrice,
-          count: filteredProducts.length
+          count: transformedProducts.length
         },
-        message: `Found ${filteredProducts.length} product(s) matching "${query}"${maxPrice ? ` under $${maxPrice}` : ''}`
+        message: `Found ${transformedProducts.length} product(s) matching "${query}"${maxPrice ? ` under $${maxPrice}` : ''}`
       }
     } catch (error) {
       return {
@@ -162,17 +199,26 @@ export class ToolExecutor {
 
   private async purchaseAmazonProduct(sku: string, quantity: number, confirm: boolean, shipping?: any): Promise<ToolResult> {
     try {
-      // Get product details first using Amazon proxy
-      const productResult = await this.getProductDetails(sku)
-      if (!productResult.success || !productResult.data) {
+      // Check if we have this product in our cache from recent searches
+      const product = this.productCache.get(sku)
+
+      if (!product) {
         return {
           success: false,
-          error: `Product with SKU ${sku} not found`
+          error: `Product with ASIN ${sku} not found in recent searches. Please search for this product first, then try purchasing again.`
         }
       }
-      const product = productResult.data
 
-      const totalPrice = product.price * quantity
+      // Check if we have the required signed data
+      if (!product.productBlob || !product.signature) {
+        return {
+          success: false,
+          error: `Missing signed product data for ${sku}. Please search for this product again to get fresh signed data.`
+        }
+      }
+
+      const unitPrice = product.price
+      const totalPrice = unitPrice * quantity
 
       // Check wallet balance first
       const balanceResult = await this.checkWalletBalance()
@@ -202,7 +248,7 @@ export class ToolExecutor {
           data: {
             product,
             quantity,
-            unitPrice: product.price,
+            unitPrice,
             totalPrice,
             needsConfirmation: true,
             walletBalance: usdcBalance
@@ -211,14 +257,28 @@ export class ToolExecutor {
         }
       }
 
-      // Execute the actual purchase via x402 payment protocol (handles Faremeter payments automatically)
+      // Create wallet address for idempotency key
+      const walletAddress = balanceResult.data.address || 'unknown-wallet'
+      const idempotencyKey = `${walletAddress}-${product.asin}-${Date.now()}`
+
+      // Execute the actual purchase via x402 payment protocol with new stateless format
       const response = await x402Fetch({
         url: `${PAYMENT_PROXY_URL}/purchase`,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: { sku, quantity, shipping },
+        body: {
+          productBlob: product.productBlob,
+          signature: product.signature,
+          quantity,
+          shipping,
+          idempotencyKey,
+          priceExpectation: {
+            amount: unitPrice,
+            currency: 'USD'
+          }
+        },
       })
 
       const result = await response.json()
@@ -227,7 +287,7 @@ export class ToolExecutor {
         // Handle x402 payment flow or other errors
         return {
           success: false,
-          error: `Purchase failed: ${result.error || 'Unknown error'}`,
+          error: `Purchase failed: ${result.message || result.error || 'Unknown error'}`,
           data: result
         }
       }

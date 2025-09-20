@@ -10,6 +10,7 @@
     "lint": "next lint",
     "format": "prettier --write .",
     "type-check": "tsc --noEmit",
+    "lint:x402": "bash scripts/assert-x402.sh",
     "test:claude": "node test-claude.js"
   },
   "dependencies": {
