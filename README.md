@@ -1,295 +1,406 @@
-# Mallory.fun v0
+# Mallory - AI-Powered Amazon Shopping with USDC Payments
 
-**Your Couloir-Inspired Super Agent**
+**Production-ready chat interface for Amazon purchases using Solana USDC payments via x402 protocol**
 
-Mallory is a production-quality, mobile-first web application that provides intelligent conversations powered by Claude 3.5 Sonnet. Inspired by the precision and confidence of couloir mountaineering, Mallory helps you navigate any challenge with expert guidance.
+Mallory is a Next.js application that combines Claude AI conversation capabilities with real Amazon shopping functionality powered by USDC payments on Solana mainnet. Users can chat naturally to search for products, get recommendations, and complete real purchases with cryptocurrency.
 
-## ✨ Features
+## 🏗️ System Architecture
 
-### v0 (Current)
-- 🔐 **Secure Authentication** - Magic link email authentication via Supabase
-- 💬 **Intelligent Chat** - Real-time streaming conversations with Claude 3.5 Sonnet
-- 📱 **Mobile-First Design** - Responsive, high-contrast UI optimized for all devices
-- 🎨 **Beautiful Interface** - Custom couloir-inspired design with smooth animations
-- ⚡ **Lightning Fast** - Edge-optimized API routes with streaming responses
-
-### v1 (Available)
-- 💳 **Payments Integration** - x402/Faremeter integration with hosted facilitator
-- 🛍️ **Amazon Shopping** - Purchase items via x402 payment flow
-- 🔗 **Solana Integration** - Query mainnet data via MCP server
-- 💰 **Wallet Management** - Mallory-controlled wallet for payments
-
-## 🚀 Prerequisites
-
-### Core Requirements
-- **Node.js 20+** and npm/pnpm
-- **Supabase Project** - Get your URL and anon key from [supabase.com](https://supabase.com)
-- **Anthropic API Key** - Get your key from [console.anthropic.com](https://console.anthropic.com)
-
-### v1 Features (Optional)
-- **MCP Solana Server** - Clone and run [corbits-demos/packages/mcp-solana](https://github.com/abklabs/corbits-demos/tree/main/packages/mcp-solana)
-- **Amazon Faremeter Demo** - Clone and run [corbits-demos/demos/amazon-faremeter](https://github.com/abklabs/corbits-demos/tree/main/demos/amazon-faremeter)
-
-## ⚙️ Setup
-
-### 1. Clone and Install
-
-```bash
-git clone <your-repo-url>
-cd malloryapp
-npm install
+### Core Infrastructure
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Mallory App   │    │  Amazon Proxy   │    │   MCP Solana    │
+│   (Next.js)     │    │   (Node.js)     │    │   (TypeScript)  │
+│   Port: 3001    │◄──►│   Port: 8787    │    │   Port: 8765    │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         │              ┌─────────────────┐              │
+         └──────────────►│ Payment Proxy   │◄─────────────┘
+                        │ (x402 Provider) │
+                        │   Port: 8402    │
+                        └─────────────────┘
+                                 │
+                        ┌─────────────────┐
+                        │   Crossmint     │
+                        │  (Amazon API)   │
+                        └─────────────────┘
 ```
 
-### 2. Environment Configuration
+### Required Repositories
+
+This system requires **3 separate repositories** to be cloned and running:
+
+1. **malloryapp** (this repo) - Main chat interface and API routes
+2. **amazon-demo-proxy** - Amazon product search and purchase proxy
+3. **corbits-demos/packages/mcp-solana** - Solana wallet tools and payment proxy
+
+## 🚀 Quick Start
+
+### 1. Clone All Required Repositories
 
 ```bash
+# Create a workspace directory
+mkdir mallory-workspace && cd mallory-workspace
+
+# Clone the main Mallory app (this repo)
+git clone [your-mallory-repo-url] malloryapp
+
+# Clone the Amazon proxy
+git clone https://github.com/abklabs/amazon-demo-proxy.git
+
+# Clone the MCP Solana tools
+git clone https://github.com/abklabs/corbits-demos.git
+```
+
+### 2. Repository Structure
+```
+mallory-workspace/
+├── malloryapp/              # Main chat interface (this repo)
+├── amazon-demo-proxy/       # Amazon product search & purchase
+└── corbits-demos/
+    └── packages/
+        └── mcp-solana/      # Solana tools & payment proxy
+```
+
+### 3. Environment Setup
+
+#### Mallory App (.env.local)
+```bash
+cd malloryapp
 cp .env.example .env.local
 ```
 
-Fill in your environment variables in `.env.local`:
-
+Configure your `.env.local`:
 ```env
-# Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+# Supabase Configuration (Required)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# Anthropic API Key
-ANTHROPIC_API_KEY=your_anthropic_api_key
+# Anthropic API Key (Required)
+ANTHROPIC_API_KEY=sk-ant-api03-your-key
+CLAUDE_MODEL=claude-sonnet-4-20250514
 
-# Payments / x402 / Faremeter
+# Payments Configuration (Mainnet)
 NEXT_PUBLIC_ENABLE_PAYMENTS=true
-NEXT_PUBLIC_FACILITATOR_URL=https://facilitator.corbits.dev
+VITE_FAREMETER_FACILITATOR_URL=https://facilitator.corbits.dev
+VITE_FAREMETER_SCHEME=x-solana-settlement
+VITE_FAREMETER_NETWORK=solana:mainnet
+VITE_USDC_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 
-# Local demos you will run separately
-NEXT_PUBLIC_AMAZON_PROXY_URL=http://localhost:8787
+# Local Service URLs (Default ports)
+VITE_AMAZON_PROXY_URL=http://localhost:8787
+VITE_PAYMENT_PROXY_URL=http://localhost:8402
 NEXT_PUBLIC_MCP_SOLANA_URL=http://localhost:8765
 
-# Solana (server-side wallet, dev only)
-MALLORY_WALLET_SECRET_BASE58=   # optional; if empty, generate dev keypair and store server-only
+# Crossmint Configuration (For real Amazon purchases)
+VITE_CROSSMINT_API_KEY=your-crossmint-api-key
+VITE_CROSSMINT_ENV=production
+
+# SERP API (For Amazon product search)
+VITE_SERP_API_KEY=your-serp-api-key
+
+# Solana Wallet (Generated automatically if not provided)
+MALLORY_WALLET_SECRET_BASE58=
 ```
 
-### 3. Supabase Setup
-
-1. Create a new Supabase project at [supabase.com](https://supabase.com)
-2. Go to **Settings > API** and copy:
-   - Project URL → `NEXT_PUBLIC_SUPABASE_URL`
-   - Anon key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-3. In **Authentication > Settings**:
-   - Enable "Enable email confirmations" (recommended)
-   - Add your domain to "Site URL" (e.g., `http://localhost:3000` for development)
-
-### 4. Anthropic API Setup
-
-1. Create an account at [console.anthropic.com](https://console.anthropic.com)
-2. Generate an API key
-3. Add it to your `.env.local` as `ANTHROPIC_API_KEY`
-
-### 5. Run Development Server
-
+#### Amazon Proxy (.env)
 ```bash
-npm run dev
+cd ../amazon-demo-proxy
+cp .env.example .env
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see Mallory in action! 🎉
+Configure Amazon proxy `.env`:
+```env
+SERP_API_KEY=your-serp-api-key
+CROSSMINT_API_KEY=your-crossmint-api-key
+CROSSMINT_BASE_URL=https://www.crossmint.com/api/2022-06-09
+PRODUCT_SIGNING_SECRET=your-signing-secret
+```
 
-### 6. v1 Features Setup (Optional)
-
-To enable the full v1 payment and integration features:
-
-#### a) Start Local Demo Services
-
+#### MCP Solana (.env)
 ```bash
-# Option 1: Use the provided script (if corbits-demos is cloned alongside)
-npm run dev:externals
-
-# Option 2: Start services manually in separate terminals
-# Terminal 1: MCP Solana Server
 cd ../corbits-demos/packages/mcp-solana
-pnpm install && pnpm dev
+cp .env.example .env
+```
 
-# Terminal 2: Amazon Faremeter Demo
-cd ../corbits-demos/demos/amazon-faremeter
-pnpm install && pnpm dev
+Configure MCP Solana `.env`:
+```env
+NETWORK=mainnet
+SERVER_PORT=8765
+PROXY_PORT=8402
+PAYTO_ADDRESS=your-merchant-solana-address
+PRICE_USDC=0.01
+PAYER_KEYPAIR_PATH=/path/to/malloryapp/.wallet.json
+FAREMETER_FACILITATOR_URL=https://facilitator.corbits.dev
+MCP_SERVER_URL=http://localhost:8787
+```
 
-# Terminal 3: Mallory App
+### 4. Install Dependencies
+
+```bash
+# Install all dependencies
+cd malloryapp && npm install
+cd ../amazon-demo-proxy && npm install
+cd ../corbits-demos/packages/mcp-solana && npm install
+```
+
+### 5. Start All Services
+
+#### Option A: Manual Start (Recommended for Development)
+```bash
+# Terminal 1: Amazon Proxy
+cd amazon-demo-proxy
+npm start
+
+# Terminal 2: MCP Solana Payment Proxy
+cd corbits-demos/packages/mcp-solana
+npx tsx src/payment-proxy.ts
+
+# Terminal 3: MCP Solana Server
+cd corbits-demos/packages/mcp-solana
+npx tsx src/http-server.ts
+
+# Terminal 4: Mallory App
+cd malloryapp
 npm run dev
 ```
 
-#### b) Test the Features
-
-1. **Wallet**: Visit [/wallet](http://localhost:3000/wallet)
-   - View Mallory's auto-generated wallet address
-   - Fund the wallet with demo USDC/SOL
-   - Copy the address for testing
-
-2. **Amazon Demo**: Visit [/demos/amazon](http://localhost:3000/demos/amazon)
-   - Use SKU: `B00EXAMPLE`
-   - Quantity: `1`
-   - Click "Purchase via x402" and watch the payment flow
-
-3. **Solana Demo**: Visit [/demos/solana](http://localhost:3000/demos/solana)
-   - Click "Use Mallory" to load the wallet address
-   - Query balance, signatures, or specific transactions
-
-#### c) Console Output
-
-When running `npm run dev`, you'll see:
-
-```
-✅ Mallory v1 Features Active
-📍 Wallet: [Generated Address]
-🛍️ Amazon Demo: http://localhost:3000/demos/amazon
-🔗 Solana Demo: http://localhost:3000/demos/solana
-💰 Wallet: http://localhost:3000/wallet
-
-Prerequisites:
-- MCP Solana: http://localhost:8765
-- Amazon Proxy: http://localhost:8787
+#### Option B: Using Development Script
+```bash
+cd malloryapp
+npm run dev:externals  # Starts external services
+npm run dev           # Start Mallory app (separate terminal)
 ```
 
-## 🏗️ Project Structure
+### 6. Verify Setup
 
+Visit http://localhost:3001 and you should see:
+- ✅ Mallory chat interface
+- ✅ Wallet management tools in header
+- ✅ Amazon purchase capabilities in chat
+
+Check all services are running:
+- Mallory App: http://localhost:3001
+- Amazon Proxy: http://localhost:8787/health
+- Payment Proxy: http://localhost:8402/health
+- MCP Solana: http://localhost:8765/health
+
+## 🔧 Service Details
+
+### Service Ports & Responsibilities
+
+| Service | Port | Purpose | Repository |
+|---------|------|---------|------------|
+| **Mallory App** | 3001 | Chat interface, API routes | malloryapp |
+| **Amazon Proxy** | 8787 | Product search, order processing | amazon-demo-proxy |
+| **Payment Proxy** | 8402 | x402 payment facilitator | corbits-demos/packages/mcp-solana |
+| **MCP Solana** | 8765 | Wallet tools, balance checks | corbits-demos/packages/mcp-solana |
+
+### Data Flow
+
+1. **User Chat** → Mallory App receives natural language request
+2. **Product Search** → Amazon Proxy searches via SERP API
+3. **Payment Request** → Payment Proxy handles x402 protocol
+4. **USDC Transfer** → Solana mainnet transaction
+5. **Order Creation** → Crossmint creates real Amazon order
+6. **Confirmation** → User receives order ID and tracking
+
+## 🛠️ API Endpoints
+
+### Mallory App (Port 3001)
 ```
-malloryapp/
-├── .env.example                    # Environment template
-├── README.md                       # You are here
-├── package.json                    # Dependencies & scripts
-├── next.config.js                  # Next.js configuration
-├── tailwind.config.ts              # Tailwind theme config
-├── tsconfig.json                   # TypeScript configuration
-├── public/
-│   ├── favicon.ico                 # Favicon
-│   ├── logo-mallory.svg           # Main logo
-│   └── motif-couloir.svg          # Design motif
-└── src/
-    ├── app/                        # Next.js App Router
-    │   ├── layout.tsx             # Root layout
-    │   ├── page.tsx               # Landing page
-    │   ├── globals.css            # Global styles
-    │   ├── chat/page.tsx          # Chat interface
-    │   ├── wallet/page.tsx        # Wallet management (v1)
-    │   ├── demos/                 # Demo pages (v1)
-    │   │   ├── amazon/page.tsx    # Amazon purchase demo
-    │   │   └── solana/page.tsx    # Solana data queries
-    │   ├── auth/                  # Authentication pages
-    │   └── api/                   # API routes
-    │       ├── chat/route.ts      # Claude streaming chat
-    │       ├── wallet/route.ts    # Wallet management (v1)
-    │       ├── amazon/purchase/   # Amazon x402 handler (v1)
-    │       └── solana/            # Solana MCP proxies (v1)
-    ├── components/                 # Reusable UI components
-    ├── lib/                       # Core utilities
-    │   └── server/                # Server-side utilities (v1)
-    │       ├── x402.ts           # x402 payment handler
-    │       └── wallet.ts         # Solana wallet management
-    ├── providers/                 # React context providers
-    ├── hooks/                     # Custom React hooks
-    └── types/                     # TypeScript definitions
+POST /api/chat              # Claude conversation streaming
+GET  /api/wallet/balance     # Check USDC balance
+POST /api/amazon/purchase    # Purchase with x402 flow
+GET  /api/solana/balance     # Solana wallet balance
 ```
 
-## 🎨 Design System
+### Amazon Proxy (Port 8787)
+```
+GET  /products              # Search Amazon products
+POST /purchase              # Create Amazon order
+GET  /health                # Service health check
+```
 
-Mallory uses a custom design system inspired by couloir mountaineering:
+### Payment Proxy (Port 8402)
+```
+POST /purchase              # x402 payment processing
+POST /payment-webhook       # Payment completion webhook
+GET  /health                # Service health check
+```
 
-- **Colors**: Deep space backgrounds with icy teal and violet accents
-- **Typography**: Inter for body text, Space Grotesk for headings
-- **Motifs**: Geometric couloir-inspired shapes and gradients
-- **Animations**: Subtle fade-ins and sliding animations for smooth interactions
+### MCP Solana (Port 8765)
+```
+POST /mcp/free              # Free Solana queries
+POST /mcp/premium           # Premium Solana operations
+GET  /health                # Service health check
+```
 
-## 🔧 Available Scripts
+## 🏛️ Architecture Deep Dive
+
+### Payment Flow (x402 Protocol)
+```
+1. User: "Buy Amazon Basics pencils"
+2. Claude: Searches products via Amazon Proxy
+3. User: Confirms purchase
+4. Mallory: Initiates x402 payment flow
+5. Payment Proxy: Requests USDC payment
+6. Solana: Transfers USDC to merchant
+7. Crossmint: Creates real Amazon order
+8. User: Receives order confirmation
+```
+
+### Technology Stack
+
+**Frontend (Mallory App)**
+- Next.js 14 with App Router
+- TypeScript & Tailwind CSS
+- Framer Motion animations
+- Supabase authentication
+
+**Backend Services**
+- Node.js with Express (Amazon Proxy)
+- TypeScript with Faremeter SDK (Payment Proxy)
+- MCP (Model Context Protocol) integration
+
+**Blockchain & Payments**
+- Solana Web3.js for wallet operations
+- x402 payment protocol
+- USDC token transfers
+- Crossmint for Amazon API integration
+
+**External APIs**
+- Anthropic Claude for AI conversation
+- SERP API for Amazon product search
+- Crossmint for Amazon order creation
+- Supabase for user management
+
+### Security Features
+
+- **Server-side wallet**: Private keys never exposed to client
+- **HMAC product signatures**: Prevent product tampering
+- **x402 payment receipts**: Cryptographic payment proofs
+- **Environment isolation**: Separate configs per service
+- **Rate limiting**: Built-in API protection
+
+## 🧪 Testing & Development
+
+### Available Scripts
 
 ```bash
-npm run dev          # Start development server
-npm run dev:externals # Start MCP and Amazon demo servers (v1)
-npm run build        # Build for production
-npm run start        # Start production server
-npm run lint         # Run ESLint
-npm run format       # Format code with Prettier
-npm run type-check   # Run TypeScript checks
+# Development
+npm run dev              # Start Mallory app
+npm run dev:externals    # Start external services
+npm run dev:clean        # Clean ports before starting
+
+# Code Quality
+npm run lint             # ESLint checking
+npm run type-check       # TypeScript validation
+npm run format           # Prettier formatting
+
+# Testing
+npm run test:claude      # Test Claude API integration
+npm run test:e2e         # Playwright end-to-end tests
+npm run lint:x402        # Validate x402 implementation
 ```
 
-## 🚀 Deployment
+### Testing Real Purchases
 
-### Vercel (Recommended)
+1. **Fund Wallet**: Send USDC to your generated wallet address
+2. **Test Chat**: "I want to buy pencils for school"
+3. **Verify Flow**: Check all services respond correctly
+4. **Confirm Order**: Real Amazon order should be created
 
-1. Push your code to GitHub
-2. Connect your repo to [Vercel](https://vercel.com)
-3. Add environment variables in Vercel dashboard:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `ANTHROPIC_API_KEY`
-4. Deploy! 🚀
+### Debugging
 
-### Other Platforms
+Check service logs in each terminal:
+```bash
+# Mallory App logs
+[api/amazon/purchase] Purchase successful: {...}
+[Faremeter] x402 flow completed
 
-Mallory works with any platform that supports Next.js:
-- **Netlify**: Use `@netlify/plugin-nextjs`
-- **Railway**: Direct Next.js support
-- **Render**: Static site + Node.js service
+# Amazon Proxy logs
+[Amazon Proxy] Searching for "pencils" via SerpAPI
+[Amazon Proxy] Found 10 real Amazon products
 
-## 🏛️ Architecture
+# Payment Proxy logs
+Payment proxy running on http://localhost:8402 (mainnet)
+✅ Payment proxy configuration validated
+```
 
-### v0 (Base Chat)
-- **Next.js 14** with App Router for modern React development
-- **Supabase** for authentication and user management
-- **Anthropic Claude** for intelligent conversation streaming
-- **Tailwind CSS** + **Framer Motion** for beautiful, responsive UI
-
-### v1 (Payments & Integrations)
-- **x402/Faremeter** protocol for micropayments via hosted facilitator
-- **Solana Web3.js** for blockchain wallet management (server-side only)
-- **MCP (Model Context Protocol)** for Solana data queries
-- **Feature Flags** for clean separation between v0 and v1 functionality
-
-All payment features are optional and feature-flagged for backwards compatibility.
-
-## 🐛 Troubleshooting
+## 🚨 Troubleshooting
 
 ### Common Issues
 
-**"User not authenticated" errors**
-- Check your Supabase URL and keys in `.env.local`
-- Verify Supabase project is active
-- Check Site URL in Supabase auth settings
+**Services Not Starting**
+```bash
+# Check if ports are in use
+lsof -i :3001 :8787 :8402 :8765
 
-**Chat not responding**
-- Verify `ANTHROPIC_API_KEY` is correct
-- Check API key has sufficient credits
-- Look for errors in browser console
+# Kill processes if needed
+npm run dev:clean
+```
 
-**Email magic links not working**
-- Check Supabase email settings
-- Verify Site URL matches your domain
-- Check spam folder
+**Payment Failures**
+- Verify wallet has sufficient USDC balance
+- Check Solana RPC endpoint connectivity
+- Ensure x402 facilitator is reachable
 
-**v1 Features not showing**
-- Ensure `NEXT_PUBLIC_ENABLE_PAYMENTS=true` in `.env.local`
-- Check that MCP server is running on port 8765
-- Verify Amazon proxy is running on port 8787
-- Look for "Wallet", "Amazon", "Solana" buttons in chat header
+**Product Search Issues**
+- Verify SERP API key is valid
+- Check product catalog configuration
+- Ensure Amazon proxy is responding
 
-**x402 payment failures**
-- Verify facilitator URL is correct: `https://facilitator.corbits.dev`
-- Check browser network tab for 402 responses
-- Ensure demo proxy servers are responding
+**Chat Not Responding**
+- Check Anthropic API key and credits
+- Verify Claude model permissions
+- Look for rate limiting errors
 
-### Getting Help
+### Required External Services
 
-- Check browser console for errors
-- Verify all environment variables are set
-- Ensure API keys have proper permissions
-- For v1 issues, check server logs for x402 and MCP errors
+1. **Supabase Project** - User authentication
+2. **Anthropic API** - Claude conversation
+3. **SERP API** - Amazon product search
+4. **Crossmint Account** - Amazon order creation
+5. **Solana RPC** - Blockchain operations
+
+## 📦 Deployment
+
+### Environment-Specific Configuration
+
+**Development**: All services on localhost
+**Staging**: External services with test API keys
+**Production**: Mainnet configuration with real API keys
+
+### Vercel Deployment (Mallory App Only)
+
+```bash
+# Build and deploy main app
+npm run build
+vercel --prod
+
+# Set environment variables in Vercel dashboard
+# External services need separate hosting
+```
+
+### Full Stack Deployment
+
+For production deployment, each service needs separate hosting:
+- **Mallory App**: Vercel, Netlify, or similar
+- **Amazon Proxy**: Railway, Render, or VPS
+- **MCP Services**: Railway, Render, or VPS
 
 ## 📄 License
 
 MIT License - see LICENSE file for details.
 
-## 🏔️ About
+## 🏔️ About Mallory
 
-Built with the precision and confidence of a perfect couloir line. Mallory helps you navigate any challenge, just like finding the ideal path down a mountain face.
+Named after George Mallory, the legendary mountaineer. Just as Mallory sought the perfect route to the summit, this application finds the perfect path from conversation to purchase.
 
-**Made with** Next.js 14, TypeScript, Tailwind CSS, Supabase, and Claude 3.5 Sonnet.
+**Built with precision, powered by AI, secured by blockchain.**
 
 ---
 
-*Ready to start your ascent? [Get started](#setup) now!*# mallory
+*Ready to start building? Follow the [Quick Start](#quick-start) guide above!*

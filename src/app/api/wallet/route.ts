@@ -4,8 +4,8 @@ import { Connection, PublicKey } from '@solana/web3.js'
 
 export const runtime = 'nodejs'
 
-// Create connection to Solana mainnet
-const connection = new Connection('https://api.mainnet-beta.solana.com', 'confirmed')
+// Create connection to Solana mainnet - using working Helius API key
+const connection = new Connection('https://mainnet.helius-rpc.com/?api-key=1fba1aa6-d7b9-459a-8566-a2e5676d96a9', 'confirmed')
 
 // USDC mint address on mainnet
 const USDC_MINT = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')

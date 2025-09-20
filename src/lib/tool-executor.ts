@@ -1,16 +1,16 @@
 import { ToolResult, ToolName } from './tools'
-import { x402Fetch } from './server/x402'
+import { executeX402Flow } from './faremeter'
+import { paymentConfig } from '@/config/payments'
+import { validateProductForTesting, getTestProductByAsin, isKnownTestAsin } from '@/config/testAsins'
 
 // Internal API base URL
 const API_BASE = process.env.NODE_ENV === 'production'
   ? 'https://your-domain.com/api'
-  : 'http://localhost:3000/api'
+  : 'http://localhost:3001/api'
 
-// Amazon proxy API base URL
-const AMAZON_PROXY_URL = process.env.NEXT_PUBLIC_AMAZON_PROXY_URL || 'http://localhost:8787'
-
-// Payment proxy URL for purchases (bypasses our own API to use Faremeter wallet)
-const PAYMENT_PROXY_URL = 'http://localhost:8402'
+// Use payment config for consistent URL management
+const AMAZON_PROXY_URL = paymentConfig.amazonProxyUrl
+const PAYMENT_PROXY_URL = paymentConfig.paymentProxyUrl
 
 export class ToolExecutor {
   // Simple in-memory cache for recently searched products with their signed data
@@ -84,20 +84,31 @@ export class ToolExecutor {
 
   private async searchAmazonProducts(query: string, maxPrice?: number): Promise<ToolResult> {
     try {
-      // Use Faremeter/x402 payment proxy for product search (no API keys needed)
-      const searchUrl = new URL(`${PAYMENT_PROXY_URL}/products`)
+      // Use Amazon proxy for product search with proper parameter handling
+      const searchUrl = new URL(`${AMAZON_PROXY_URL}/products`)
       searchUrl.searchParams.set('search', query)
+      searchUrl.searchParams.set('limit', '10') // Reasonable limit
       if (maxPrice) {
         searchUrl.searchParams.set('max_price', maxPrice.toString())
       }
 
-      const response = await fetch(searchUrl.toString())
+      console.log(`[ToolExecutor] Searching products at: ${searchUrl.toString()}`)
+
+      const response = await fetch(searchUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Mallory/1.0',
+        },
+        cache: 'no-store' // Always get fresh product data
+      })
 
       if (!response.ok) {
-        throw new Error(`Amazon search API error: ${response.status}`)
+        throw new Error(`Amazon search API error: ${response.status} ${response.statusText}`)
       }
 
       const data = await response.json()
+      console.log(`[ToolExecutor] Search response:`, data)
 
       // Handle new signed product format
       let signedProducts = data.products || []
@@ -199,14 +210,63 @@ export class ToolExecutor {
 
   private async purchaseAmazonProduct(sku: string, quantity: number, confirm: boolean, shipping?: any): Promise<ToolResult> {
     try {
+      // Pre-purchase eligibility validation
+      const eligibilityCheck = validateProductForTesting(sku)
+      const isTestProduct = isKnownTestAsin(sku)
+
+      // Log eligibility warnings for debugging
+      if (eligibilityCheck.warnings.length > 0) {
+        console.warn(`[ToolExecutor] Eligibility warnings for ${sku}:`, eligibilityCheck.warnings)
+      }
+
       // Check if we have this product in our cache from recent searches
-      const product = this.productCache.get(sku)
+      let product = this.productCache.get(sku)
 
       if (!product) {
-        return {
-          success: false,
-          error: `Product with ASIN ${sku} not found in recent searches. Please search for this product first, then try purchasing again.`
+        console.log(`[ToolExecutor] Product ${sku} not in cache, performing fallback search...`)
+
+        // For test products, try to get known data first
+        if (isTestProduct) {
+          const testProduct = getTestProductByAsin(sku)
+          if (testProduct && !testProduct.eligibleForTesting) {
+            return {
+              success: false,
+              error: `Test product ${sku} (${testProduct.title}) is marked as not eligible for testing. ${eligibilityCheck.recommendations.join(' ')}`
+            }
+          }
         }
+
+        // Fallback: search for the specific ASIN to get fresh signed data
+        const searchResult = await this.searchAmazonProducts(sku, undefined)
+
+        if (!searchResult.success || !searchResult.data || searchResult.data.products.length === 0) {
+          // Provide better error messages for test products
+          if (isTestProduct) {
+            const testProduct = getTestProductByAsin(sku)
+            return {
+              success: false,
+              error: `Test product ${sku} (${testProduct?.title || 'Unknown'}) not found via search. The proxy may not be running or the product may be temporarily unavailable.`
+            }
+          }
+
+          return {
+            success: false,
+            error: `Product with ASIN ${sku} not found. The product may no longer be available or the ASIN may be invalid.`
+          }
+        }
+
+        // Find the exact product by ASIN
+        const foundProduct = searchResult.data.products.find((p: any) => p.asin === sku)
+
+        if (!foundProduct) {
+          return {
+            success: false,
+            error: `Product with ASIN ${sku} not found in search results. The ASIN may be invalid.`
+          }
+        }
+
+        product = foundProduct
+        console.log(`[ToolExecutor] Successfully retrieved product ${sku} via fallback search`)
       }
 
       // Check if we have the required signed data
@@ -261,14 +321,15 @@ export class ToolExecutor {
       const walletAddress = balanceResult.data.address || 'unknown-wallet'
       const idempotencyKey = `${walletAddress}-${product.asin}-${Date.now()}`
 
-      // Execute the actual purchase via x402 payment protocol with new stateless format
-      const response = await x402Fetch({
-        url: `${PAYMENT_PROXY_URL}/purchase`,
+      // Execute the actual purchase via improved x402 payment protocol
+      const response = await executeX402Flow(`${PAYMENT_PROXY_URL}/purchase`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'User-Agent': 'Mallory/1.0',
         },
         body: {
+          asin: product.asin,
           productBlob: product.productBlob,
           signature: product.signature,
           quantity,
@@ -277,7 +338,8 @@ export class ToolExecutor {
           priceExpectation: {
             amount: unitPrice,
             currency: 'USD'
-          }
+          },
+          walletAddress: balanceResult.data.address
         },
       })
 

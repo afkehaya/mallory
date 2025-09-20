@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { x402Fetch } from '@/lib/server/x402'
+import { executeX402Flow } from '@/lib/faremeter'
+import { paymentConfig } from '@/config/payments'
 
 export const runtime = 'nodejs'
 
@@ -14,22 +15,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const amazonProxyUrl = process.env.NEXT_PUBLIC_AMAZON_PROXY_URL
-    if (!amazonProxyUrl) {
+    console.log(`[api/amazon/purchase] Purchasing SKU: ${sku}, Quantity: ${quantity}`)
+
+    // First, get product data from Amazon proxy
+    const searchUrl = new URL(`${paymentConfig.amazonProxyUrl}/products`)
+    searchUrl.searchParams.set('search', sku)
+    searchUrl.searchParams.set('limit', '1')
+
+    const searchResponse = await fetch(searchUrl.toString())
+    if (!searchResponse.ok) {
       return NextResponse.json(
-        { error: 'Amazon proxy not configured' },
-        { status: 500 }
+        { error: 'Product not found' },
+        { status: 404 }
       )
     }
 
-    console.log(`[api/amazon/purchase] Purchasing SKU: ${sku}, Quantity: ${quantity}`)
+    const searchData = await searchResponse.json()
+    const product = searchData.products?.find((p: any) => p.product?.asin === sku)
 
-    // Make request to Amazon proxy via x402 handler
-    const response = await x402Fetch({
-      url: `${amazonProxyUrl}/purchase`,
+    if (!product || !product.productBlob || !product.signature) {
+      return NextResponse.json(
+        { error: 'Product not found or missing required data' },
+        { status: 404 }
+      )
+    }
+
+    // Use the exact x402 implementation
+    const response = await executeX402Flow(`${paymentConfig.paymentProxyUrl}/purchase`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mallory/1.0',
+      },
       body: {
-        sku,
+        productBlob: product.productBlob,
+        signature: product.signature,
         quantity,
       },
     })

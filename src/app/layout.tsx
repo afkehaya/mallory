@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/providers/AuthProvider'
+import HealthBanner from '@/components/HealthBanner'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -62,6 +63,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`}>
       <body className={inter.className}>
         <AuthProvider>
+          <HealthBanner />
           {children}
         </AuthProvider>
       </body>

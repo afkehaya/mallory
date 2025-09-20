@@ -10,7 +10,7 @@ echo "==============================================="
 
 # Configuration
 AMAZON_PROXY_URL="http://localhost:8787"
-PAYMENT_PROXY_URL="http://localhost:8402"
+PAYMENT_PROXY_URL="http://localhost:3001/api/amazon"
 MALLORY_APP_URL="http://localhost:3001"
 TMP_DIR="/tmp/mallory-e2e"
 SEARCH_QUERY="wireless earbuds"
